@@ -4,3 +4,10 @@ version = "0.1.0"
 authors = ["Graeme Coupar <grambo@grambo.me.uk>"]
 
 [dependencies]
+serde = "1"
+eetf = "0"
+num-bigint = "0"
+num-traits = "0"
+
+[dev-dependencies]
+serde_derive = "1"
