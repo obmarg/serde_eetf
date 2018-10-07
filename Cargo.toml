@@ -6,7 +6,7 @@ authors = ["Graeme Coupar <grambo@grambo.me.uk>"]
 [dependencies]
 serde = "1"
 eetf = "0"
-num-bigint = "0"
+num-bigint = "0.1"
 num-traits = "0"
 
 [dev-dependencies]
