@@ -15,19 +15,19 @@ use error::{Error, Result};
 pub fn to_writer<T, W>(value: &T, writer: &mut W) -> Result<()>
 where
     T: Serialize + ?Sized,
-    W: io::Write,
+    W: io::Write + ?Sized,
 {
     let serializer = Serializer {};
     let term = value.serialize(&serializer)?;
     match term.encode(writer) {
-        Ok(result) => Ok(()),
-        Err(error) => Err(Error::EncodeError("TODO".to_string())),
+        Ok(_result) => Ok(()),
+        Err(_error) => Err(Error::EncodeError("TODO".to_string())),
     }
 }
 
 pub fn to_bytes<T>(value: &T) -> Result<Vec<u8>>
 where
-    T: Serialize,
+    T: Serialize + ?Sized,
 {
     let mut cursor = io::Cursor::new(Vec::new());
 
