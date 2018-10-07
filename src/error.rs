@@ -41,7 +41,7 @@ impl std::error::Error for Error {
         match *self {
             Error::Message(ref msg) => msg,
             Error::DecodeError(ref msg) => msg,
-            Error::EncodeError(ref msg) => msg
+            Error::EncodeError(ref msg) => msg,
         }
     }
 }

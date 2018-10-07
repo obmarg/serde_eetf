@@ -12,7 +12,7 @@ use error::{Error, Result};
 // Rust types the serializer is able to produce as output.
 //
 // This basic serializer supports only `to_string`.
-pub fn to_writer<T, W>(value: &T, writer: W) -> Result<()>
+pub fn to_writer<T, W>(value: &T, writer: &mut W) -> Result<()>
 where
     T: Serialize,
     W: io::Write,
@@ -21,7 +21,19 @@ where
     let term = value.serialize(&serializer)?;
     match term.encode(writer) {
         Ok(result) => Ok(()),
-        Err(error) => Err(Error::EncodeError("TODO".to_string()))
+        Err(error) => Err(Error::EncodeError("TODO".to_string())),
+    }
+}
+
+pub fn to_bytes<T>(value: &T) -> Result<Vec<u8>>
+where
+    T: Serialize,
+{
+    let mut cursor = io::Cursor::new(Vec::new());
+
+    match to_writer(value, &mut cursor) {
+        Ok(_) => Ok(cursor.into_inner()),
+        Err(e) => Err(e),
     }
 }
 
@@ -426,4 +438,107 @@ impl<'a> ser::SerializeStructVariant for MapSerializer {
     }
 }
 
-// TODO: Tests
+// TODO: More Tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Helper function for tests. Runs things through our serializer then
+    // decodes and returns.
+    fn serialize_and_decode<T>(data: T) -> Term
+    where
+        T: Serialize,
+    {
+        let bytes = to_bytes(&data).expect("serialize failed");
+        Term::decode(io::Cursor::new(bytes)).expect("Decode failed")
+    }
+
+    #[test]
+    fn test_unsigned_ints_and_structs() {
+        #[derive(PartialEq, Serialize)]
+        struct TestStruct {
+            unsigned8: u8,
+            unsigned16: u16,
+            unsigned32: u32,
+            unsigned64: u64,
+        }
+
+        let result = serialize_and_decode(TestStruct {
+            unsigned8: 129,
+            unsigned16: 65530,
+            unsigned32: 65530,
+            unsigned64: 65530,
+        });
+        assert_eq!(
+            result,
+            Term::Map(eetf::Map::from(vec![
+                (
+                    Term::Atom(eetf::Atom::from("unsigned8")),
+                    Term::FixInteger(eetf::FixInteger::from(129))
+                ),
+                (
+                    Term::Atom(eetf::Atom::from("unsigned16")),
+                    Term::FixInteger(eetf::FixInteger::from(65530))
+                ),
+                (
+                    Term::Atom(eetf::Atom::from("unsigned32")),
+                    Term::BigInteger(eetf::BigInteger::from(65530))
+                ),
+                (
+                    Term::Atom(eetf::Atom::from("unsigned64")),
+                    Term::BigInteger(eetf::BigInteger::from(65530))
+                )
+            ]))
+        )
+    }
+
+    #[test]
+    fn test_signed_ints_and_tuple_structs() {
+        #[derive(PartialEq, Serialize)]
+        struct TestStruct(i8, i16, i32, i64);
+
+        let result = serialize_and_decode(TestStruct(-127, 30000, 65530, 65530));
+        assert_eq!(
+            result,
+            Term::Tuple(eetf::Tuple::from(vec![
+                Term::FixInteger(eetf::FixInteger::from(-127)),
+                Term::FixInteger(eetf::FixInteger::from(30000)),
+                Term::FixInteger(eetf::FixInteger::from(65530)),
+                Term::BigInteger(eetf::BigInteger::from(65530)),
+            ]))
+        )
+    }
+
+    #[test]
+    fn test_binaries_tuples_and_lists() {
+        let result = serialize_and_decode(("ABCD", vec![0, 1, 2]));
+        assert_eq!(
+            result,
+            Term::Tuple(eetf::Tuple::from(vec![
+                Term::Binary(eetf::Binary::from("ABCD".as_bytes())),
+                Term::List(eetf::List::from(vec![
+                    Term::FixInteger(eetf::FixInteger::from(0)),
+                    Term::FixInteger(eetf::FixInteger::from(1)),
+                    Term::FixInteger(eetf::FixInteger::from(2)),
+                ]))
+            ]))
+        )
+    }
+
+    #[test]
+    fn test_option() {
+        let none: Option<u8> = None;
+        let nil_result = serialize_and_decode(none);
+        let some_result = serialize_and_decode(Some(0));
+
+        assert_eq!(
+            nil_result,
+            Term::Atom(eetf::Atom::from("nil"))
+        );
+
+        assert_eq!(
+            some_result,
+            Term::FixInteger(eetf::FixInteger::from(0))
+        );
+    }
+}
