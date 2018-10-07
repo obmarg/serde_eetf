@@ -14,7 +14,7 @@ use error::{Error, Result};
 // This basic serializer supports only `to_string`.
 pub fn to_writer<T, W>(value: &T, writer: &mut W) -> Result<()>
 where
-    T: Serialize,
+    T: Serialize + ?Sized,
     W: io::Write,
 {
     let serializer = Serializer {};
