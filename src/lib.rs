@@ -1,4 +1,5 @@
 extern crate eetf;
+extern crate heck;
 extern crate num_bigint;
 extern crate num_traits;
 extern crate serde;
@@ -14,4 +15,4 @@ mod ser;
 
 //pub use de::{from_str, Deserializer};
 pub use error::{Error, Result};
-pub use ser::{to_writer, to_bytes, Serializer};
+pub use ser::{to_bytes, to_writer, Serializer};

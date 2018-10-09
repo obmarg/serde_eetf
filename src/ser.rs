@@ -3,6 +3,8 @@ use num_traits::cast::FromPrimitive;
 use serde::ser::{self, Serialize};
 use std::io;
 
+use heck::SnakeCase;
+
 use eetf::{self, Term};
 
 use error::{Error, Result};
@@ -43,7 +45,17 @@ pub struct SequenceSerializer {
     items: Vec<Term>,
 }
 
+pub struct NamedSequenceSerializer {
+    name: Term,
+    items: Vec<Term>,
+}
+
 pub struct MapSerializer {
+    items: Vec<(Term, Term)>,
+}
+
+pub struct NamedMapSerializer {
+    name: Term,
     items: Vec<(Term, Term)>,
 }
 
@@ -60,10 +72,10 @@ impl<'a> ser::Serializer for &'a Serializer {
     type SerializeSeq = SequenceSerializer;
     type SerializeTuple = SequenceSerializer;
     type SerializeTupleStruct = SequenceSerializer;
-    type SerializeTupleVariant = SequenceSerializer;
+    type SerializeTupleVariant = NamedSequenceSerializer;
     type SerializeMap = MapSerializer;
     type SerializeStruct = MapSerializer;
-    type SerializeStructVariant = MapSerializer;
+    type SerializeStructVariant = NamedMapSerializer;
 
     // The following 12 methods receive one of the primitive types of the data
     // model and map it to eetf
@@ -140,8 +152,6 @@ impl<'a> ser::Serializer for &'a Serializer {
         Ok(Term::Atom(eetf::Atom::from("nil")))
     }
 
-    // TODO: Do the rest of this...
-
     // At present optional is represented as just the contained value. Note that
     // this is a lossy representation. For example the values `Some(())` and
     // `None` both serialize as just `null`.
@@ -160,8 +170,8 @@ impl<'a> ser::Serializer for &'a Serializer {
         self.serialize_none()
     }
 
-    // Unit struct means a named value containing no data. Again, since there is
-    // no data, map this to eetf as `nil`.
+    // Unit struct means a named value containing no data.
+    // We basically just treat this like nil for now.
     fn serialize_unit_struct(self, _name: &'static str) -> Result<Term> {
         self.serialize_unit()
     }
@@ -176,8 +186,7 @@ impl<'a> ser::Serializer for &'a Serializer {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<Term> {
-        // TODO: Fix this.
-        self.serialize_str(variant)
+        Ok(Term::Atom(eetf::Atom::from(variant.to_snake_case())))
     }
 
     // We treat newtype structs as insignificant wrappers around the data they
@@ -193,7 +202,8 @@ impl<'a> ser::Serializer for &'a Serializer {
     // methods) refer exclusively to the "externally tagged" enum
     // representation.
     //
-    // Serialize this to JSON in externally tagged form as `{ NAME: VALUE }`.
+    // We serialize this to {value_name, value}, which hopefully allows results
+    // to be serialized into fairly standard erlang ok/err tuples.
     fn serialize_newtype_variant<T>(
         self,
         _name: &'static str,
@@ -204,9 +214,11 @@ impl<'a> ser::Serializer for &'a Serializer {
     where
         T: ?Sized + Serialize,
     {
-        // TODO: Decide how to encode this...
-        // seems like we could use tuples or maps?
-        Ok(Term::Binary(eetf::Binary::from("TODO".as_bytes())))
+        let serialized_value = value.serialize(self)?;
+        Ok(Term::Tuple(eetf::Tuple::from(vec![
+            Term::Atom(eetf::Atom::from(variant.to_snake_case())),
+            serialized_value,
+        ])))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq> {
@@ -233,17 +245,20 @@ impl<'a> ser::Serializer for &'a Serializer {
         self.serialize_tuple(len)
     }
 
-    // Tuple variants are represented in eetf as `{ NAME: [DATA...] }`. Again
+    // Tuple variants are represented in eetf as `{name, {data}}`. Again
     // this method is only responsible for the externally tagged representation.
+    // TODO: decide if this is a good idea...
     fn serialize_tuple_variant(
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant> {
-        // TODO: decide how to do this.
-        self.serialize_tuple(len)
+        Ok(NamedSequenceSerializer {
+            name: Term::Atom(eetf::Atom::from(variant.to_snake_case())),
+            items: Vec::with_capacity(len),
+        })
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap> {
@@ -264,12 +279,13 @@ impl<'a> ser::Serializer for &'a Serializer {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant> {
-        // TODO: Decide how to do this...
-        // do we want to tag things?
-        self.serialize_map(Some(len))
+        Ok(NamedMapSerializer {
+            name: Term::Atom(eetf::Atom::from(variant.to_snake_case())),
+            items: Vec::with_capacity(len),
+        })
     }
 }
 
@@ -336,7 +352,7 @@ impl<'a> ser::SerializeTupleStruct for SequenceSerializer {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for SequenceSerializer {
+impl<'a> ser::SerializeTupleVariant for NamedSequenceSerializer {
     type Ok = Term;
     type Error = Error;
 
@@ -352,9 +368,13 @@ impl<'a> ser::SerializeTupleVariant for SequenceSerializer {
 
     fn end(self) -> Result<Term> {
         // TODO: rename items to elements.
-        Ok(Term::Tuple(eetf::Tuple {
+        let serialized_data = Term::Tuple(eetf::Tuple {
             elements: self.items,
-        }))
+        });
+        Ok(Term::Tuple(eetf::Tuple::from(vec![
+            self.name,
+            serialized_data,
+        ])))
     }
 }
 
@@ -363,14 +383,14 @@ impl<'a> ser::SerializeMap for MapSerializer {
     type Error = Error;
 
     // Serialize a single element of the sequence.
-    fn serialize_key<T>(&mut self, value: &T) -> Result<()>
+    fn serialize_key<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
         panic!("Not Implemented")
     }
 
-    fn serialize_value<T>(&mut self, value: &T) -> Result<()>
+    fn serialize_value<T>(&mut self, _value: &T) -> Result<()>
     where
         T: ?Sized + Serialize,
     {
@@ -417,7 +437,7 @@ impl<'a> ser::SerializeStruct for MapSerializer {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for MapSerializer {
+impl<'a> ser::SerializeStructVariant for NamedMapSerializer {
     type Ok = Term;
     type Error = Error;
 
@@ -432,9 +452,13 @@ impl<'a> ser::SerializeStructVariant for MapSerializer {
     }
 
     fn end(self) -> Result<Term> {
-        Ok(Term::Map(eetf::Map {
+        let serialized_data = Term::Map(eetf::Map {
             entries: self.items,
-        }))
+        });
+        Ok(Term::Tuple(eetf::Tuple::from(vec![
+            self.name,
+            serialized_data,
+        ])))
     }
 }
 
@@ -531,14 +555,64 @@ mod tests {
         let nil_result = serialize_and_decode(none);
         let some_result = serialize_and_decode(Some(0));
 
-        assert_eq!(
-            nil_result,
-            Term::Atom(eetf::Atom::from("nil"))
-        );
+        assert_eq!(nil_result, Term::Atom(eetf::Atom::from("nil")));
+
+        assert_eq!(some_result, Term::FixInteger(eetf::FixInteger::from(0)));
+    }
+
+    #[test]
+    fn test_unit_variant() {
+        #[derive(Serialize)]
+        enum E {
+            AnOption,
+            AnotherOption,
+        };
+
+        let result = serialize_and_decode(E::AnOption);
+
+        assert_eq!(result, Term::Atom(eetf::Atom::from("an_option")))
+    }
+
+    #[test]
+    fn test_newtype_variant() {
+        // Not 100% sure if this is a tuple variant or a newtype variant.
+        // But whatever I guess?
+        #[derive(Serialize)]
+        enum ErlResult {
+            Ok(String),
+        };
+
+        let result = serialize_and_decode(ErlResult::Ok("test".to_string()));
 
         assert_eq!(
-            some_result,
-            Term::FixInteger(eetf::FixInteger::from(0))
+            result,
+            Term::Tuple(eetf::Tuple::from(vec![
+                Term::Atom(eetf::Atom::from("ok")),
+                Term::Binary(eetf::Binary::from("test".as_bytes())),
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_tuple_variant() {
+        // Not 100% sure if this is a tuple variant or a newtype variant.
+        // But whatever I guess?
+        #[derive(Serialize)]
+        enum Testing {
+            Ok(u8, u8),
+        };
+
+        let result = serialize_and_decode(Testing::Ok(1, 2));
+
+        assert_eq!(
+            result,
+            Term::Tuple(eetf::Tuple::from(vec![
+                Term::Atom(eetf::Atom::from("ok")),
+                Term::Tuple(eetf::Tuple::from(vec![
+                    Term::FixInteger(eetf::FixInteger::from(1)),
+                    Term::FixInteger(eetf::FixInteger::from(2)),
+                ]))
+            ]))
         );
     }
 }
