@@ -1,5 +1,6 @@
 use std::io::{Read};
 use std::str;
+use std::iter;
 use eetf::{Term};
 
 use num_traits::cast::FromPrimitive;
@@ -294,12 +295,8 @@ impl<'de> de::Deserializer<'de> for &'de Deserializer<'de> {
     {
         match self.term {
             Term::List(list) => {
-                let seq_deserializer = ListDeserializer::new(&list.elements);
-                let result = visitor.visit_seq(&seq_deserializer);
-                match seq_deserializer.end() {
-                    Ok(()) => result,
-                    Err(e) => Err(e)
-                }
+                let seq_deserializer = ListDeserializer::new(list.elements.iter());
+                visitor.visit_seq(seq_deserializer)
             }
             _ =>
                 Err(Error::ExpectedList)
@@ -315,12 +312,8 @@ impl<'de> de::Deserializer<'de> for &'de Deserializer<'de> {
                 if tuple.elements.len() != len {
                     return Err(Error::WrongTupleLength)
                 }
-                let seq_deserializer = ListDeserializer::new(&tuple.elements);
-                let result = visitor.visit_seq(&seq_deserializer);
-                match seq_deserializer.end() {
-                    Ok(()) => result,
-                    Err(e) => Err(e)
-                }
+                let seq_deserializer = ListDeserializer::new(tuple.elements.iter());
+                visitor.visit_seq(seq_deserializer)
             }
             _ =>
                 Err(Error::ExpectedTuple)
@@ -422,17 +415,21 @@ impl<'de> de::Deserializer<'de> for &'de Deserializer<'de> {
     }
 }
 
-struct ListDeserializer<'de> {
-    list: &'de [Term],
+struct ListDeserializer<I>
+    where I: Iterator
+{
+    iter: iter::Fuse<I>
 }
 
-impl<'de> ListDeserializer<'de> {
-    fn new(list: &'de [Term]) -> Self {
-        ListDeserializer{list: list}
+impl<I> ListDeserializer<I>
+    where I: Iterator
+{
+    fn new(iter: I) -> Self {
+        ListDeserializer{iter: iter.fuse()}
     }
 
     fn end(&self) -> Result<()> {
-        if self.list.len() == 0 {
+        if self.iter.count() == 0 {
             Ok(())
         } else {
             Err(Error::TooManyItems)
@@ -440,16 +437,17 @@ impl<'de> ListDeserializer<'de> {
     }
 }
 
-impl<'de> SeqAccess<'de> for &'de ListDeserializer<'de> {
+impl<'de, 'a: 'de, I> SeqAccess<'de> for ListDeserializer<I>
+where I: Iterator<Item = &'a Term>,
+{
     type Error = Error;
 
-    fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>>
+    fn next_element_seed<V>(&mut self, seed: V) -> Result<Option<V::Value>>
     where
-        T: DeserializeSeed<'de>
+        V: de::DeserializeSeed<'de>,
     {
-        match self.list.first() {
+        match self.iter.next() {
             Some(term) => {
-                self.list = &self.list[1..];
                 seed.deserialize(&Deserializer::from_term(term)).map(Some)
             }
             None => Ok(None)
