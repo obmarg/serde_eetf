@@ -1,6 +1,7 @@
 use std::io::{Read};
 use std::str;
 use std::iter;
+use std::marker::PhantomData;
 use eetf::{Term};
 
 use num_traits::cast::FromPrimitive;
@@ -12,6 +13,9 @@ use serde::de::{
 
 use error::{Error, Result};
 
+use self::private::*;
+
+
 pub struct Deserializer<'a> {
     term: &'a Term
 }
@@ -20,6 +24,22 @@ impl<'a> Deserializer<'a> {
     pub fn from_term(term: &'a Term) -> Self
     {
         Deserializer{ term: term }
+    }
+}
+
+trait IntoEetfDeserializer {
+    fn into_deserializer<'a>(&'a self) -> Deserializer<'a>;
+}
+
+impl IntoEetfDeserializer for Term {
+    fn into_deserializer<'de>(&'de self) -> Deserializer<'de> {
+        Deserializer::from_term(self)
+    }
+}
+
+impl<'de, 'a: 'de> From<&'a Term> for Deserializer<'de> {
+    fn from(term: &'a Term) -> Self {
+        Deserializer::from_term(term)
     }
 }
 
@@ -339,7 +359,7 @@ impl<'de> de::Deserializer<'de> for &'de Deserializer<'de> {
     {
         match self.term {
             Term::Map(map) => {
-                let map_deserializer = MapDeserializer::new(&map.entries);
+                let map_deserializer = MapDeserializer::new(map.entries.iter());
                 let result = visitor.visit_map(map_deserializer);
                 match map_deserializer.end() {
                     Ok(()) => result,
@@ -455,18 +475,26 @@ where I: Iterator<Item = &'a Term>,
     }
 }
 
-struct MapDeserializer<'de> {
-    items: &'de [(Term, Term)],
-    current_value: Option<&'de Term>
+struct MapDeserializer<'de, I, T>
+where
+    I: Iterator<Item = T>,
+    T: Pair
+{
+    items: iter::Fuse<I>,
+    current_value: Option<T::Second>,
+    lifetime: PhantomData<&'de ()>,
 }
 
-impl<'de> MapDeserializer<'de> {
-    fn new(items: &'de [(Term, Term)]) -> Self {
-        MapDeserializer { items: items, current_value: None }
+impl<'de, I, T> MapDeserializer<'de, I, T>
+where I: Iterator<Item = T>
+    , T: Pair
+{
+    fn new(iter: I) -> Self {
+        MapDeserializer { items: iter.fuse(), current_value: None, lifetime: PhantomData }
     }
 
     fn end(&self) -> Result<()> {
-        if self.items.len() == 0 {
+        if self.items.count() == 0 {
             Ok(())
         } else {
             Err(Error::TooManyItems)
@@ -474,7 +502,17 @@ impl<'de> MapDeserializer<'de> {
     }
 }
 
-impl<'de> MapAccess<'de> for MapDeserializer<'de> {
+
+
+impl<'de, I, T> MapAccess<'de> for MapDeserializer<'de, I, T>
+where I: Iterator<Item = T>,
+      T: Pair,
+      First<I::Item>: IntoEetfDeserializer,
+      Second<I::Item>: IntoEetfDeserializer
+
+        // TODO: We might need an into serializer constraint on the pair.
+        // But for now fuck it.
+{
     type Error = Error;
 
     fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>>
@@ -485,12 +523,13 @@ impl<'de> MapAccess<'de> for MapDeserializer<'de> {
             panic!("MapDeserializer.next_key_seed was called twice in a row")
         }
 
-        match self.items.first() {
-            Some((key, value)) => {
-                self.items = &self.items[1..];
-                self.current_value = Some(&value);
+        match self.items.next() {
+            Some(pair) => {
+                let (key, val) = pair.split();
+                self.current_value = Some(val);
+                let deserializer = key.into_deserializer();
 
-                seed.deserialize(&Deserializer::from_term(key)).map(Some)
+                seed.deserialize(&deserializer).map(Some)
             }
             None => Ok(None)
         }
@@ -586,4 +625,27 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
         let deserializer = Deserializer::from_term(self.term);
         de::Deserializer::deserialize_map(&deserializer, visitor)
     }
+}
+
+mod private {
+    // Some code I stole from serde.
+
+    /// Avoid having to restate the generic types on `MapDeserializer`. The
+    /// `Iterator::Item` contains enough information to figure out K and V.
+    pub trait Pair {
+        type First;
+        type Second;
+        fn split(self) -> (Self::First, Self::Second);
+    }
+
+    impl<A, B> Pair for (A, B) {
+        type First = A;
+        type Second = B;
+        fn split(self) -> (A, B) {
+            self
+        }
+    }
+
+    pub type First<T> = <T as Pair>::First;
+    pub type Second<T> = <T as Pair>::Second;
 }
