@@ -4,12 +4,10 @@ use std::fmt::{self, Display};
 use eetf;
 use serde::{de, ser};
 
+/// The Result type of a serialization/deserialization.
 pub type Result<T> = std::result::Result<T, Error>;
 
-// This is a bare-bones implementation. A real library would provide additional
-// information in its error type, for example the line and column at which the
-// error occurred, the byte offset into the input, or the current key being
-// processed.
+/// An Error type for serializing/deserializing EETF.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Error {
     Message(String),

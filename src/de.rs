@@ -16,6 +16,9 @@ use error::{Error, Result};
 
 use self::private::*;
 
+/// Deserializes an `eetf::Term`
+///
+/// Generally you should use the from_bytes or from_reader functions instead.
 pub struct Deserializer<'a> {
     term: &'a Term,
 }
@@ -42,6 +45,7 @@ impl IntoEetfDeserializer for Term {
 //     }
 // }
 
+/// Deserializes some EETF from a Read
 pub fn from_reader<R, T>(reader: R) -> Result<T>
 where
     R: Read,
@@ -53,6 +57,7 @@ where
     Ok(t)
 }
 
+/// Deserializes some EETF from a slice of bytes.
 pub fn from_bytes<T>(bytes: &[u8]) -> Result<T>
 where
     T: DeserializeOwned,

@@ -9,11 +9,7 @@ use eetf::{self, Term};
 
 use error::{Error, Result};
 
-// By convention, the public API of a Serde deserializer is one or more `to_abc`
-// functions such as `to_string`, `to_bytes`, or `to_writer` depending on what
-// Rust types the serializer is able to produce as output.
-//
-// This basic serializer supports only `to_string`.
+/// Serializes a value into EETF using a Write
 pub fn to_writer<T, W>(value: &T, writer: &mut W) -> Result<()>
 where
     T: Serialize + ?Sized,
@@ -27,6 +23,7 @@ where
     }
 }
 
+/// Serializes a value into a EETF in a Vec of bytes
 pub fn to_bytes<T>(value: &T) -> Result<Vec<u8>>
 where
     T: Serialize + ?Sized,
@@ -39,22 +36,23 @@ where
     }
 }
 
-pub struct Serializer {}
+/// Serializes 
+struct Serializer {}
 
-pub struct SequenceSerializer {
+struct SequenceSerializer {
     items: Vec<Term>,
 }
 
-pub struct NamedSequenceSerializer {
+struct NamedSequenceSerializer {
     name: Term,
     items: Vec<Term>,
 }
 
-pub struct MapSerializer {
+struct MapSerializer {
     items: Vec<(Term, Term)>,
 }
 
-pub struct NamedMapSerializer {
+struct NamedMapSerializer {
     name: Term,
     items: Vec<(Term, Term)>,
 }
