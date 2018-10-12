@@ -699,9 +699,6 @@ mod tests {
     use super::*;
 
     use eetf::{self, Term};
-    use std::fmt::Debug;
-
-    use serde::Serialize;
 
     // Helper function for tests. Runs things through our serializer then
     // decodes and returns.
