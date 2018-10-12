@@ -2,6 +2,17 @@
 name = "serde_eetf"
 version = "0.1.0"
 authors = ["Graeme Coupar <grambo@grambo.me.uk>"]
+description = "Erlang external term format support for serde."
+homepage = "https://github.com/obmarg/serde_eetf"
+repository = "https://github.com/obmarg/serde_eetf"
+readme = "README.md"
+keywords = ["serde", "serialization", "erlang", "elixir", "eetf"]
+license = "MIT"
+
+[badges]
+travis-ci = { "repository" = "obmarg/serde_eetf" }
+maintenance = { status = "experimental" }
+
 
 [dependencies]
 serde = "1"
