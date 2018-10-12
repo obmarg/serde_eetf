@@ -2,6 +2,7 @@ extern crate eetf;
 extern crate heck;
 extern crate num_bigint;
 extern crate num_traits;
+#[macro_use]
 extern crate serde;
 
 // We need serde_derive to derive serializers/deserializers in our tests.

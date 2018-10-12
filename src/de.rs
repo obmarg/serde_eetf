@@ -131,10 +131,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     where
         V: Visitor<'de>,
     {
-        match self.term {
-            Term::Atom(_) => self.deserialize_identifier(visitor),
-            _ => Err(Error::TypeHintsRequired),
-        }
+        Err(Error::TypeHintsRequired)
     }
 
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
@@ -439,7 +436,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
         V: Visitor<'de>,
     {
         match self.term {
-            Term::Atom(atom) => visitor.visit_string(atom.name.to_camel_case()),
+            Term::Atom(atom) => visitor.visit_string(atom.name.clone()),
             _ => Err(Error::ExpectedAtom),
         }
     }
@@ -448,7 +445,8 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     where
         V: Visitor<'de>,
     {
-        self.deserialize_any(visitor)
+        // Just skip over this by calling visit_unit.
+        visitor.visit_unit()
     }
 }
 
@@ -598,7 +596,7 @@ impl<'de> EnumAccess<'de> for EnumDeserializer<'de> {
     where
         V: DeserializeSeed<'de>,
     {
-        let val = seed.deserialize(Deserializer::from_term(self.variant))?;
+        let val = seed.deserialize(VariantNameDeserializer::from_term(self.variant))?;
         Ok((val, self))
     }
 }
@@ -644,6 +642,36 @@ impl<'de> VariantAccess<'de> for EnumDeserializer<'de> {
     }
 }
 
+struct VariantNameDeserializer<'a> {
+    term: &'a Term,
+}
+
+impl<'a> VariantNameDeserializer<'a> {
+    pub fn from_term(term: &'a Term) -> Self {
+        VariantNameDeserializer { term: term }
+    }
+}
+
+impl<'de, 'a: 'de> de::Deserializer<'de> for VariantNameDeserializer<'a> {
+    type Error = Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        match self.term {
+            Term::Atom(atom) => visitor.visit_string(atom.name.to_camel_case()),
+            _ => Err(Error::ExpectedAtom),
+        }
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string
+            bytes byte_buf option unit unit_struct newtype_struct seq tuple
+            tuple_struct map struct enum identifier ignored_any
+    }
+}
+
 mod private {
     // Some code I stole from serde.
 
@@ -683,7 +711,7 @@ mod tests {
         T: DeserializeOwned,
     {
         let mut cursor = io::Cursor::new(vec![]);
-        Term::encode(&input, &mut cursor);
+        Term::encode(&input, &mut cursor).expect("encode failed");
 
         from_bytes(&cursor.into_inner()).expect("deserialize failed")
     }
