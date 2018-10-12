@@ -1,7 +1,6 @@
 use eetf::Term;
 use std::io::{self, Read};
 use std::iter;
-use std::slice::Iter;
 use std::str;
 
 use heck::CamelCase;
@@ -9,8 +8,8 @@ use heck::CamelCase;
 use num_traits::cast::{FromPrimitive, ToPrimitive};
 
 use serde::de::{
-    self, Deserialize, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess,
-    SeqAccess, VariantAccess, Visitor,
+    self, DeserializeOwned, DeserializeSeed, EnumAccess,
+    IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
 
 use error::{Error, Result};
@@ -27,7 +26,6 @@ impl<'a> Deserializer<'a> {
     }
 }
 
-// TODO: figure out if this is needed.
 trait IntoEetfDeserializer {
     fn into_deserializer<'a>(&'a self) -> Deserializer<'a>;
 }
@@ -127,7 +125,7 @@ impl<'a> Deserializer<'a> {
 impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     type Error = Error;
 
-    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -280,7 +278,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
                     visitor.visit_some(self)
                 }
             }
-            other => visitor.visit_some(self),
+            _ => visitor.visit_some(self),
         }
     }
 
@@ -296,7 +294,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
                     Err(Error::ExpectedNil)
                 }
             }
-            other => Err(Error::ExpectedNil),
+            _ => Err(Error::ExpectedNil),
         }
     }
 
@@ -391,8 +389,6 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     where
         V: Visitor<'de>,
     {
-        // TODO: So, think I need to somehow tell the MapDeserializer that it needs
-        // to deserialize string keys...
         match self.term {
             Term::Map(map) => {
                 let mut map_deserializer = MapDeserializer::new(map.entries.iter());
@@ -553,8 +549,6 @@ where
             None => Ok(None),
         }
     }
-
-    // TODO: implement next_entry_seed instead.
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value>
     where
@@ -843,5 +837,6 @@ mod tests {
 
         assert_eq!(result, Testing::Ok(1, 2));
     }
-    // TODO: test actual maps, rather than structs.  Suspect they're broken.
+    // TODO: test actual maps, as well as structs.  Suspect they're broken.
+    // some quickcheck based roundtrip tests would also be great.
 }
