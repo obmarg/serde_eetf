@@ -25,16 +25,16 @@ pub struct Deserializer<'a> {
 
 impl<'a> Deserializer<'a> {
     pub fn from_term(term: &'a Term) -> Self {
-        Deserializer { term: term }
+        Deserializer { term }
     }
 }
 
 trait IntoEetfDeserializer {
-    fn into_deserializer<'a>(&'a self) -> Deserializer<'a>;
+    fn into_deserializer(&self) -> Deserializer;
 }
 
 impl IntoEetfDeserializer for Term {
-    fn into_deserializer<'a>(&'a self) -> Deserializer<'a> {
+    fn into_deserializer(&self) -> Deserializer {
         Deserializer::from_term(self)
     }
 }
@@ -428,7 +428,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
                 [variant_term, value_term] => {
                     visitor.visit_enum(EnumDeserializer::new(&variant_term, &value_term))
                 }
-                _ => return Err(Error::MisSizedVariantTuple),
+                _ => Err(Error::MisSizedVariantTuple),
             },
             _ => Err(Error::ExpectedAtomOrTuple),
         }
@@ -466,14 +466,6 @@ where
 {
     fn new(iter: I) -> Self {
         ListDeserializer { iter: iter.fuse() }
-    }
-
-    fn end(self) -> Result<()> {
-        if self.iter.count() == 0 {
-            Ok(())
-        } else {
-            Err(Error::TooManyItems)
-        }
     }
 }
 
@@ -542,7 +534,7 @@ where
     where
         K: DeserializeSeed<'de>,
     {
-        if let Some(_) = self.current_value {
+        if self.current_value.is_some() {
             panic!("MapDeserializer.next_key_seed was called twice in a row")
         }
 
@@ -577,10 +569,7 @@ struct EnumDeserializer<'de> {
 
 impl<'de> EnumDeserializer<'de> {
     fn new(variant: &'de Term, term: &'de Term) -> Self {
-        EnumDeserializer {
-            variant: variant,
-            term: term,
-        }
+        EnumDeserializer { variant, term }
     }
 }
 
@@ -649,7 +638,7 @@ struct VariantNameDeserializer<'a> {
 
 impl<'a> VariantNameDeserializer<'a> {
     pub fn from_term(term: &'a Term) -> Self {
-        VariantNameDeserializer { term: term }
+        VariantNameDeserializer { term }
     }
 }
 
