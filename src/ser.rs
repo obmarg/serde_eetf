@@ -2,6 +2,7 @@ use num_bigint::BigInt;
 use num_traits::cast::FromPrimitive;
 use serde::ser::{self, Serialize};
 use std::io;
+use std::convert::TryFrom;
 
 use heck::SnakeCase;
 
@@ -128,7 +129,7 @@ impl<'a> ser::Serializer for &'a Serializer {
     }
 
     fn serialize_f64(self, v: f64) -> Result<Term> {
-        Ok(Term::Float(eetf::Float::from(v)))
+        Ok(Term::Float(eetf::Float::try_from(v)?))
     }
 
     // Serialize a char as a single-character string.
