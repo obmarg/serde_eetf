@@ -33,7 +33,7 @@ pub enum Error {
     FloatConvertError,
     TooManyItems,
     MisSizedVariantTuple,
-    ExpectedAtomOrTuple
+    ExpectedAtomOrTuple,
 }
 
 impl ser::Error for Error {
@@ -78,7 +78,7 @@ impl std::error::Error for Error {
             Error::FloatConvertError => "Could not convert float without overflow",
             Error::TooManyItems => "Too many items when deserializing sequence",
             Error::MisSizedVariantTuple => "Was expecting a tuple of an atom and element",
-            Error::ExpectedAtomOrTuple => "Was expecting an atom or a tuple"
+            Error::ExpectedAtomOrTuple => "Was expecting an atom or a tuple",
         }
     }
 }

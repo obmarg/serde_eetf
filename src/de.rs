@@ -8,8 +8,8 @@ use heck::CamelCase;
 use num_traits::cast::{FromPrimitive, ToPrimitive};
 
 use serde::de::{
-    self, DeserializeOwned, DeserializeSeed, EnumAccess,
-    IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
+    self, DeserializeOwned, DeserializeSeed, EnumAccess, IntoDeserializer, MapAccess, SeqAccess,
+    VariantAccess, Visitor,
 };
 
 use crate::error::{Error, Result};
@@ -101,11 +101,13 @@ impl<'a> Deserializer<'a> {
         T: FromPrimitive,
     {
         match self.term {
-            Term::Float(float) => if let Some(num) = T::from_f64(float.value) {
-                Ok(num)
-            } else {
-                Err(Error::IntegerConvertError)
-            },
+            Term::Float(float) => {
+                if let Some(num) = T::from_f64(float.value) {
+                    Ok(num)
+                } else {
+                    Err(Error::IntegerConvertError)
+                }
+            }
             _ => Err(Error::ExpectedFloat),
         }
     }
