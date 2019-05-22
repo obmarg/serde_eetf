@@ -12,7 +12,7 @@ use serde::de::{
     IntoDeserializer, MapAccess, SeqAccess, VariantAccess, Visitor,
 };
 
-use error::{Error, Result};
+use crate::error::{Error, Result};
 
 use self::private::*;
 
