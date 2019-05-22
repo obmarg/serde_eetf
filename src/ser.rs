@@ -8,7 +8,7 @@ use heck::SnakeCase;
 
 use eetf::{self, Term};
 
-use error::{Error, Result};
+use crate::error::{Error, Result};
 
 /// Serializes a value into EETF using a Write
 pub fn to_writer<T, W>(value: &T, writer: &mut W) -> Result<()>

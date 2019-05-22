@@ -8,6 +8,7 @@ repository = "https://github.com/obmarg/serde_eetf"
 readme = "README.md"
 keywords = ["serde", "serialization", "erlang", "elixir", "eetf"]
 license = "MIT"
+edition = "2018"
 
 [badges]
 travis-ci = { "repository" = "obmarg/serde_eetf" }
