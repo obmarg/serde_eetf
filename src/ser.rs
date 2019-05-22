@@ -1,8 +1,8 @@
 use num_bigint::BigInt;
 use num_traits::cast::FromPrimitive;
 use serde::ser::{self, Serialize};
-use std::io;
 use std::convert::TryFrom;
+use std::io;
 
 use heck::SnakeCase;
 
@@ -37,7 +37,7 @@ where
     }
 }
 
-/// Serializes 
+/// Serializes
 struct Serializer {}
 
 struct SequenceSerializer {
