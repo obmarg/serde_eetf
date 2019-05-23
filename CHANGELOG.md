@@ -11,6 +11,16 @@ all APIs might be changed.
 
 ## Unreleased - yyyy-mm-dd
 
+## v0.2.0 - 2019-05-23
+
+### Breaking Changes
+
+- We now require Rust >= 1.34.
+
+### Changes
+
+- Updated our dependencies, which may have brought in fixes from them.
+
 ## v0.1.0 - 2018-10-12
 
 The initial release.
