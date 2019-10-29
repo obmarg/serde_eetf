@@ -1,4 +1,5 @@
 use eetf::Term;
+use std::fmt::{self, Debug};
 use std::io::{self, Read};
 use std::iter;
 use std::str;
@@ -550,6 +551,39 @@ where
         // expected failure.
         let value = value.expect("MapAccess::visit_value called before visit_key");
         seed.deserialize(value.into_deserializer())
+    }
+}
+
+// Cannot #[derive(Clone)] because of the bound `Second<I::Item>: Clone`.
+impl<'de, I, T> Clone for MapDeserializer<'de, I, T>
+    where
+        I: Iterator<Item = T> + Clone,
+        T: Pair<'de> + 'de,
+        Second<'de, I::Item>: 'de + Clone,
+{
+    fn clone(&self) -> Self {
+        MapDeserializer {
+            iter: self.iter.clone(),
+            value: self.value.clone(),
+            count: self.count,
+        }
+    }
+}
+
+// Cannot #[derive(Debug)] because of the bound `Second<I::Item>: Debug`.
+impl<'de, I, T> Debug for MapDeserializer<'de, I, T>
+    where
+        I: Iterator<Item = T> + Debug,
+        T: Pair<'de> + 'de,
+        Second<'de, I::Item>: 'de + Debug,
+{
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter
+            .debug_struct("MapDeserializer")
+            .field("iter", &self.iter)
+            .field("value", &self.value)
+            .field("count", &self.count)
+            .finish()
     }
 }
 
