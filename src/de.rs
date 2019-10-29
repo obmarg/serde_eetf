@@ -145,12 +145,10 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     {
         match self.term {
             Term::Atom(b) => {
-                if b.name == "true" {
-                    visitor.visit_bool(true)
-                } else if b.name == "false" {
-                    visitor.visit_bool(false)
-                } else {
-                    Err(Error::InvalidBoolean)
+                match b.name.as_str() {
+                    "true" => visitor.visit_bool(true),
+                    "false" => visitor.visit_bool(false),
+                    _ => Err(Error::InvalidBoolean),
                 }
             }
 
@@ -279,10 +277,9 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     {
         match self.term {
             Term::Atom(atom) => {
-                if atom.name == "nil" {
-                    visitor.visit_none()
-                } else {
-                    visitor.visit_some(self)
+                match atom.name.as_str() {
+                    "nil" => visitor.visit_none(),
+                    _ => visitor.visit_some(self),
                 }
             }
             _ => visitor.visit_some(self),
@@ -295,10 +292,9 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     {
         match self.term {
             Term::Atom(atom) => {
-                if atom.name == "nil" {
-                    visitor.visit_unit()
-                } else {
-                    Err(Error::ExpectedNil)
+                match atom.name.as_str() {
+                    "nil" => visitor.visit_unit(),
+                    _ => Err(Error::ExpectedNil),
                 }
             }
             _ => Err(Error::ExpectedNil),
@@ -396,18 +392,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
     where
         V: Visitor<'de>,
     {
-        match self.term {
-            Term::Map(map) => {
-                let mut map_deserializer = MapDeserializer::new(map.entries.iter());
-                visitor.visit_map(&mut map_deserializer).and_then(|result| {
-                    match map_deserializer.end() {
-                        Ok(()) => Ok(result),
-                        Err(e) => Err(e),
-                    }
-                })
-            }
-            _ => Err(Error::ExpectedMap),
-        }
+        self.deserialize_map(visitor)
     }
 
     fn deserialize_enum<V>(
@@ -496,8 +481,9 @@ where
     First<'de, I::Item>: 'de,
     Second<'de, I::Item>: 'de,
 {
-    items: iter::Fuse<I>,
-    current_value: Option<&'de T::Second>,
+    iter: iter::Fuse<I>,
+    value: Option<&'de T::Second>,
+    count: usize,
 }
 
 impl<'de, I, T> MapDeserializer<'de, I, T>
@@ -507,16 +493,28 @@ where
 {
     fn new(iter: I) -> Self {
         MapDeserializer {
-            items: iter.fuse(),
-            current_value: None,
+            iter: iter.fuse(),
+            value: None,
+            count: 0,
         }
     }
 
     fn end(self) -> Result<()> {
-        if self.items.count() == 0 {
+        let remaining = self.iter.count();
+        if remaining == 0 {
             Ok(())
         } else {
             Err(Error::TooManyItems)
+        }
+    }
+
+    fn next_pair(&mut self) -> Option<&'de (First<'de, T>, Second<'de, T>)> {
+        match self.iter.next() {
+            Some(kv) => {
+                self.count += 1;
+                Some(private::Pair::split(kv))
+            }
+            None => None,
         }
     }
 }
@@ -534,15 +532,9 @@ where
     where
         K: DeserializeSeed<'de>,
     {
-        if self.current_value.is_some() {
-            panic!("MapDeserializer.next_key_seed was called twice in a row")
-        }
-
-        match self.items.next() {
-            Some(pair) => {
-                let (key, val) = pair.split();
-                self.current_value = Some(val);
-
+        match self.next_pair() {
+            Some((key, value)) => {
+                self.value = Some(value);
                 seed.deserialize(key.into_deserializer()).map(Some)
             }
             None => Ok(None),
@@ -553,12 +545,11 @@ where
     where
         V: DeserializeSeed<'de>,
     {
-        if let Some(value) = self.current_value {
-            self.current_value = None;
-            seed.deserialize(value.into_deserializer())
-        } else {
-            panic!("MapDeserializer.next_value_seed was called before next_key_seed")
-        }
+        let value = self.value.take();
+        // Panic because this indicates a bug in the program rather than an
+        // expected failure.
+        let value = value.expect("MapAccess::visit_value called before visit_key");
+        seed.deserialize(value.into_deserializer())
     }
 }
 
