@@ -5,7 +5,6 @@ use std::str;
 use num_traits::cast::ToPrimitive;
 
 use serde::de::{self, DeserializeOwned, Visitor};
-use serde::private::de::size_hint;
 
 use crate::error::{Error, Result};
 
@@ -602,6 +601,22 @@ impl<'de> de::VariantAccess<'de> for VariantDeserializer {
                 de::Deserializer::deserialize_any(SeqDeserializer::new(v.elements), visitor)
             }
             _ => Err(Error::ExpectedMap),
+        }
+    }
+}
+
+mod size_hint {
+    pub fn from_bounds<I>(iter: &I) -> Option<usize>
+    where
+        I: Iterator,
+    {
+        helper(iter.size_hint())
+    }
+
+    fn helper(bounds: (usize, Option<usize>)) -> Option<usize> {
+        match bounds {
+            (lower, Some(upper)) if lower == upper => Some(upper),
+            _ => None,
         }
     }
 }
