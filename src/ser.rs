@@ -4,7 +4,7 @@ use serde::ser::{self, Serialize};
 use std::convert::TryFrom;
 use std::io;
 
-use heck::SnakeCase;
+use heck::ToSnakeCase;
 
 use eetf::{self, Term};
 

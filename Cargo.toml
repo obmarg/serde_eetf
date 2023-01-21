@@ -17,10 +17,10 @@ maintenance = { status = "experimental" }
 
 [dependencies]
 serde = "1.0"
-eetf = "0.4"
-num-bigint = "0.2"
+eetf = "0.8"
+num-bigint = "0.4"
 num-traits = "0.2"
-heck ="0.3"
+heck = "0.4"
 
 [dev-dependencies]
 serde_derive = "1.0"

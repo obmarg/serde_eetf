@@ -3,7 +3,7 @@ use std::io::{self, Read};
 use std::iter;
 use std::str;
 
-use heck::CamelCase;
+use heck::ToUpperCamelCase;
 
 use num_traits::cast::{FromPrimitive, ToPrimitive};
 
@@ -422,7 +422,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for Deserializer<'a> {
         match self.term {
             Term::Atom(atom) => {
                 // We have a unit variant.
-                visitor.visit_enum(atom.name.to_camel_case().into_deserializer())
+                visitor.visit_enum(atom.name.to_upper_camel_case().into_deserializer())
             }
             Term::Tuple(tuple) => match tuple.elements.as_slice() {
                 [variant_term, value_term] => {
@@ -650,7 +650,7 @@ impl<'de, 'a: 'de> de::Deserializer<'de> for VariantNameDeserializer<'a> {
         V: Visitor<'de>,
     {
         match self.term {
-            Term::Atom(atom) => visitor.visit_string(atom.name.to_camel_case()),
+            Term::Atom(atom) => visitor.visit_string(atom.name.to_upper_camel_case()),
             _ => Err(Error::ExpectedAtom),
         }
     }
